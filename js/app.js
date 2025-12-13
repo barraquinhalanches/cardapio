@@ -173,38 +173,80 @@ function populateObsAdditions(prod){
   const addBox = document.getElementById('obsAdditions');
   if(!listEl) return;
   listEl.innerHTML = 'Carregando ingredientes...';
+  // helper: render an array of additions into the list
+  function renderAvailable(arr){
+    const available = Array.isArray(arr) ? arr : [];
+    if(available.length === 0){ listEl.innerHTML = '<div>Nenhum ingrediente disponível.</div>'; return; }
+    const size = (document.querySelector('input[name="obsSize"]:checked')||{}).value || 'grande';
+    const rows = available.map(a=>{
+      const price = (size==='jr'? (a.preco_junior ?? a.preco_grande) : (a.preco_grande ?? a.preco_junior)) || 0;
+      return `<label style="display:block;margin-bottom:6px"><input type="checkbox" name="obsAdd" data-id="${a.id}" data-price="${price}"> ${a.nome} — R$ ${price.toFixed(2)}</label>`;
+    }).join('');
+    listEl.innerHTML = rows;
+    listEl.querySelectorAll('input[name="obsAdd"]').forEach(ch => ch.addEventListener('change', updateObsTotals));
+    updateObsTotals();
+  }
+
+  // parse CSV text into additions array (robust for 2-column name;price or larger rows)
+  function parseCsvTextToAcrescimos(text){
+    const lines = String(text||'').split(/\r?\n/).filter(l=>l.trim());
+    const out = [];
+    let id = 1;
+    for(let i=0;i<lines.length;i++){
+      let line = lines[i].trim();
+      if(!line) continue;
+      // split by ; then fallback to ,
+      let cols = line.split(';');
+      if(cols.length < 2) cols = line.split(',');
+      cols = cols.map(c=> (c||'').trim());
+      if(cols.length < 2) continue;
+      // skip header heuristics
+      if(i===0 && ((cols[0]||'').toLowerCase().includes('nome') || (cols[1]||'').toLowerCase().includes('pre') || (cols[1]||'').toLowerCase().includes('price')) ) continue;
+      let nome = cols[0];
+      let preco = null;
+      if(cols.length === 2){ preco = parseFloat((cols[1]||'').replace(',','.')) || 0; }
+      else {
+        // try to find price-like column among the columns
+        for(let j=1;j<cols.length;j++){
+          const candidate = cols[j].replace(/[^0-9,\.\-]/g,'');
+          if(candidate && /[0-9]/.test(candidate)) { preco = parseFloat(candidate.replace(',','.')) || 0; break; }
+        }
+        if(preco === null) preco = 0;
+      }
+      out.push({ id: id, nome: nome, preco_grande: preco, preco_junior: null });
+      id++;
+    }
+    return out;
+  }
+
+  // Try use preloaded ACRESCIMOS when available; otherwise fetch and parse the CSV directly
+  if(Array.isArray(ACRESCIMOS) && ACRESCIMOS.length>0){
+    renderAvailable(ACRESCIMOS);
+    return;
+  }
+
+  // If loader promise exists, wait for it then check ACRESCIMOS; if still empty, fetch CSV
   if(typeof ACRESCIMOS_READY !== 'undefined' && ACRESCIMOS_READY && typeof ACRESCIMOS_READY.then === 'function'){
     ACRESCIMOS_READY.then(()=>{
-      if(!Array.isArray(ACRESCIMOS) || ACRESCIMOS.length===0){ listEl.innerHTML = '<div>Nenhum ingrediente disponível.</div>'; return; }
-      // show all loaded acréscimos
-      const available = ACRESCIMOS || [];
-      if(available.length===0){ listEl.innerHTML = '<div>Nenhum ingrediente disponível.</div>'; return; }
-      // render checkboxes with price depending on selected size
-      const size = (document.querySelector('input[name="obsSize"]:checked')||{}).value || 'grande';
-      const rows = available.map(a=>{
-        const price = (size==='jr'? (a.preco_junior ?? a.preco_grande) : (a.preco_grande ?? a.preco_junior)) || 0;
-        return `<label style="display:block;margin-bottom:6px"><input type="checkbox" name="obsAdd" data-id="${a.id}" data-price="${price}"> ${a.nome} — R$ ${price.toFixed(2)}</label>`;
-      }).join('');
-      listEl.innerHTML = rows;
-      // attach change handlers
-      listEl.querySelectorAll('input[name="obsAdd"]').forEach(ch => ch.addEventListener('change', updateObsTotals));
-      // size change should refresh prices and totals
-      document.querySelectorAll('input[name="obsSize"]').forEach(r => r.addEventListener('change', ()=>{
-        // re-render with new prices
-        populateObsAdditions(prod);
-      }));
-      // toggle button
-      const addToggle = document.getElementById('obsAddToggle');
-      if(addToggle){
-        addToggle.onclick = ()=>{
-          if(addBox.style.display === 'none') { addBox.style.display = 'block'; addToggle.textContent = '- Acrescentar ingredientes'; }
-          else { addBox.style.display = 'none'; addToggle.textContent = '+ Acrescentar ingredientes'; }
-        };
-      }
-      updateObsTotals();
-    }).catch(err=>{ listEl.innerHTML = '<div>Erro carregando ingredientes.</div>'; });
+      if(Array.isArray(ACRESCIMOS) && ACRESCIMOS.length>0){ renderAvailable(ACRESCIMOS); return; }
+      // fallback to direct fetch/parsing
+      fetch('assets/data/acrescimos.csv').then(r=>r.text()).then(text=>{
+        const parsed = parseCsvTextToAcrescimos(text);
+        renderAvailable(parsed);
+      }).catch(()=>{ listEl.innerHTML = '<div>Erro carregando ingredientes.</div>'; });
+    }).catch(()=>{
+      // final fallback
+      fetch('assets/data/acrescimos.csv').then(r=>r.text()).then(text=>{
+        const parsed = parseCsvTextToAcrescimos(text);
+        renderAvailable(parsed);
+      }).catch(()=>{ listEl.innerHTML = '<div>Ingredientes não disponíveis.</div>'; });
+    });
   } else {
-    listEl.innerHTML = '<div>Ingredientes não disponíveis.</div>';
+    // no loader, fetch directly
+    fetch('assets/data/acrescimos.csv').then(r=>r.text()).then(text=>{
+      const parsed = parseCsvTextToAcrescimos(text);
+      renderAvailable(parsed);
+    }).catch(()=>{ listEl.innerHTML = '<div>Ingredientes não disponíveis.</div>'; });
   }
 }
 

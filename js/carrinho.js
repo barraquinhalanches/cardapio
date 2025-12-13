@@ -18,7 +18,7 @@ function addCarrinho(prod, options) {
 	}
 	CARRINHO.push(item);
 	salvarCarrinho();
-	const obsText = item.tamanho? ` (${item.tamanho.toUpperCase()})` : '';
+	const obsText = (item.tamanho && String(item.tamanho).toLowerCase()==='jr')? ` (Jr)` : '';
 	const obsNote = item.observacoes? ` — ${item.observacoes}` : '';
 	alert(prod.nome + obsText + obsNote + ' adicionado ao pedido');
 	atualizarCarrinhoUI();
@@ -31,10 +31,11 @@ if(!CARRINHO || CARRINHO.length === 0){
 	lista.innerHTML = `<li>Carrinho vazio</li>`;
 	} else {
 		lista.innerHTML = CARRINHO.map(p => {
-			const sizeLabel = p.tamanho? ` — ${p.tamanho.toUpperCase()}` : '';
+			const sizeLabel = (p.tamanho && String(p.tamanho).toLowerCase()==='jr')? ` — Jr` : '';
 			const obs = p.observacoes? ` — ${p.observacoes}` : '';
 			const adds = Array.isArray(p.acrescimos) && p.acrescimos.length? ` — +${p.acrescimos.map(a=>a.nome).join(', ')}` : '';
-			return `<li>${p.nome}${sizeLabel}${adds}${obs} — R$ ${p.preco.toFixed(2)}</li>`;
+			const preco = (typeof p.preco === 'number')? p.preco : Number(p.preco) || 0;
+			return `<li>${p.nome}${sizeLabel}${adds}${obs} — R$ ${preco.toFixed(2)}</li>`;
 		}).join("");
 }
 }

@@ -19,17 +19,23 @@ function loadAcrescimosCsv(){
         }
         text = text || '';
         const lines = text.split(/\r?\n/).filter(l=>l.trim());
-        const rows = lines.map(l=> l.split(';'));
-        const header = (rows[0]||[]).map(c=> (c||'').toLowerCase()).join('|');
-        let start = 0; if(header.includes('nome') && header.includes('pre')) start = 1;
         let id = 1;
-        for(let i=start;i<rows.length;i++){
-            const cols = rows[i].map(c=> (c||'').trim());
+        for(const line of lines){
+            // accept either ';' or ',' as separator
+            let cols = line.split(';');
+            if(cols.length < 2) cols = line.split(',');
+            cols = cols.map(c=> (c||'').trim());
             if(cols.length < 2) continue;
-            const nome = cols[1] || ('Item '+id);
-            const precoG = parsePriceA(cols[3]);
-            const precoJ = parsePriceA(cols[4]);
-            ACRESCIMOS.push({ id: id, nome: nome, preco_grande: precoG, preco_junior: precoJ });
+            // if file has header, try to skip it
+            const lower0 = (cols[0]||'').toLowerCase();
+            const lower1 = (cols[1]||'').toLowerCase();
+            if(id===1 && (lower0.includes('nome') || lower1.includes('nome') || lower0.includes('ingrediente') || lower1.includes('pre'))) {
+                // header row, skip
+                continue;
+            }
+            const nome = cols[0] || (`Item ${id}`);
+            const preco = parsePriceA(cols[1]) || 0;
+            ACRESCIMOS.push({ id: id, nome: nome, preco_grande: preco, preco_junior: null });
             id++;
         }
         return ACRESCIMOS;
