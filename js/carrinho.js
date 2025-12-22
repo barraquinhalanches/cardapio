@@ -121,10 +121,27 @@ if(orderModal){
 			try{ localStorage.setItem('orderInfo', JSON.stringify({name,address,bairro,ponto,complemento})); }catch(e){}
 
 		const lines = formatOrderLines();
-		const total = `Total: R$ ${CARRINHO.reduce((s,i)=>s+Number(i.preco),0).toFixed(2)}`;
+		const cartValue = CARRINHO.reduce((s,i)=>s+Number(i.preco),0).toFixed(2);
+		let deliveryKnown = true;
+		const otherWrapCheck = document.getElementById('orderBairroOtherWrap');
+		if(otherWrapCheck && otherWrapCheck.style.display !== 'none'){
+			deliveryKnown = false;
+		} else {
+			const sel = document.getElementById('orderBairroSelect');
+			if(sel){
+				const optSel = sel.options[sel.selectedIndex];
+				if(!optSel) deliveryKnown = false;
+				else {
+					const feeAttr = optSel.getAttribute('data-fee');
+					if(!feeAttr || feeAttr === '') deliveryKnown = false;
+				}
+			}
+		}
+		const total = `Total: R$ ${cartValue}`;
+		const totalForWhats = total + (deliveryKnown ? '' : ' — consultar taxa de entrega');
 		const header = `Pedido - ${name}`;
 			const footer = [`Endereço: ${address}${complemento? ' — ' + complemento : ''}`, `Bairro: ${bairro}`, `Ponto de referência: ${ponto}`];
-		const payload = [header, ...lines, '', total, '', ...footer].join('\n');
+		const payload = [header, ...lines, '', totalForWhats, '', ...footer].join('\n');
 		const texto = encodeURIComponent(payload);
 		const url = `https://wa.me/5516996202763?text=${texto}`;
 		hideOrderModal();
@@ -202,8 +219,13 @@ const entregaMap = {};
 				const key = bairro.toLowerCase();
 				entregaMap[key] = taxaRaw === '' ? null : taxaRaw.replace(',','.');
 				const opt = document.createElement('option');
-				opt.value = bairro;
-				opt.textContent = bairro;
+					opt.value = bairro;
+					if(entregaMap[key]){
+						const n = Number(entregaMap[key]);
+						opt.textContent = `${bairro} — R$ ${isNaN(n) ? entregaMap[key] : n.toFixed(2)}`;
+					} else {
+						opt.textContent = `${bairro} — consultar taxa de entrega`;
+					}
 				if(entregaMap[key]) opt.setAttribute('data-fee', entregaMap[key]);
 				else opt.setAttribute('data-fee','');
 				sel.appendChild(opt);
