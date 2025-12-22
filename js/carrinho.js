@@ -78,7 +78,8 @@ if(btnEnviarZap){
 			if(saved){
 				document.getElementById('orderName').value = saved.name || '';
 				document.getElementById('orderAddress').value = saved.address || '';
-				document.getElementById('orderBairro').value = saved.bairro || '';
+				document.getElementById('orderComplemento').value = saved.complemento || '';
+				setBairroValue(saved.bairro || '');
 				document.getElementById('orderPonto').value = saved.ponto || '';
 			}
 		}catch(e){}
@@ -103,19 +104,26 @@ if(orderModal){
 
 	if(sendBtn) sendBtn.addEventListener('click', ()=>{
 		if(!CARRINHO || CARRINHO.length === 0){ alert('Carrinho vazio'); return; }
-		const name = (document.getElementById('orderName').value || '').trim();
-		const address = (document.getElementById('orderAddress').value || '').trim();
-		const bairro = (document.getElementById('orderBairro').value || '').trim();
-		const ponto = (document.getElementById('orderPonto').value || '').trim();
-		if(!name || !address){ alert('Por favor informe seu nome e endereço.'); return; }
+			const name = (document.getElementById('orderName').value || '').trim();
+			const address = (document.getElementById('orderAddress').value || '').trim();
+			const complemento = (document.getElementById('orderComplemento').value || '').trim();
+			const ponto = (document.getElementById('orderPonto').value || '').trim();
+			let bairro = '';
+			const otherWrap = document.getElementById('orderBairroOtherWrap');
+			if(otherWrap && otherWrap.style.display !== 'none'){
+				bairro = (document.getElementById('orderBairroOther').value || '').trim();
+				} else {
+					bairro = (document.getElementById('orderBairroSelect').value || '').trim();
+				}
+			if(!name || !address){ alert('Por favor informe seu nome e endereço.'); return; }
 
-		// save for next time
-		try{ localStorage.setItem('orderInfo', JSON.stringify({name,address,bairro,ponto})); }catch(e){}
+			// save for next time
+			try{ localStorage.setItem('orderInfo', JSON.stringify({name,address,bairro,ponto,complemento})); }catch(e){}
 
 		const lines = formatOrderLines();
 		const total = `Total: R$ ${CARRINHO.reduce((s,i)=>s+Number(i.preco),0).toFixed(2)}`;
 		const header = `Pedido - ${name}`;
-		const footer = [`Endereço: ${address}`, `Bairro: ${bairro}`, `Ponto de referência: ${ponto}`];
+			const footer = [`Endereço: ${address}${complemento? ' — ' + complemento : ''}`, `Bairro: ${bairro}`, `Ponto de referência: ${ponto}`];
 		const payload = [header, ...lines, '', total, '', ...footer].join('\n');
 		const texto = encodeURIComponent(payload);
 		const url = `https://wa.me/5516996202763?text=${texto}`;
@@ -170,3 +178,119 @@ if(btnContactWhats) btnContactWhats.addEventListener('click', ()=>{
 
 // inicializa UI
 atualizarCarrinhoUI();
+
+// --- Delivery fees / bairro select setup ---
+const entregaMap = {};
+	function loadDeliveryFees(){
+		const sel = document.getElementById('orderBairroSelect');
+		if(!sel) return;
+		fetch('assets/data/entrega.csv').then(r=>r.arrayBuffer()).then(buf=>{
+			let txt;
+			try{
+				txt = new TextDecoder('windows-1252').decode(buf);
+			}catch(e){
+				try{ txt = new TextDecoder('iso-8859-1').decode(buf); }catch(e2){ txt = new TextDecoder('utf-8').decode(buf); }
+			}
+			const lines = txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+			if(lines.length <= 1) return;
+			lines.shift(); // header
+			lines.forEach(line=>{
+				const parts = line.split(';');
+				const bairro = (parts[0]||'').trim();
+				const taxaRaw = (parts[1]||'').trim();
+				if(!bairro) return;
+				const key = bairro.toLowerCase();
+				entregaMap[key] = taxaRaw === '' ? null : taxaRaw.replace(',','.');
+				const opt = document.createElement('option');
+				opt.value = bairro;
+				opt.textContent = bairro;
+				if(entregaMap[key]) opt.setAttribute('data-fee', entregaMap[key]);
+				else opt.setAttribute('data-fee','');
+				sel.appendChild(opt);
+			});
+			const outroOpt = document.createElement('option');
+			outroOpt.value = 'Outro';
+			outroOpt.textContent = 'Outro';
+			outroOpt.setAttribute('data-fee','');
+			sel.appendChild(outroOpt);
+			// try to prefill bairro after options loaded
+			try{
+				const savedInfo = JSON.parse(localStorage.getItem('orderInfo')||'null');
+				if(savedInfo && savedInfo.bairro) setBairroValue(savedInfo.bairro);
+			}catch(e){}
+		}).catch(()=>{
+			const outroOpt = document.createElement('option');
+			outroOpt.value = 'Outro';
+			outroOpt.textContent = 'Outro';
+			sel.appendChild(outroOpt);
+			try{
+				const savedInfo = JSON.parse(localStorage.getItem('orderInfo')||'null');
+				if(savedInfo && savedInfo.bairro) setBairroValue(savedInfo.bairro);
+			}catch(e){}
+		});
+	}
+
+function updateBairroDisplay(selectedValue){
+	const feeSpan = document.getElementById('orderBairroFee');
+	const otherWrap = document.getElementById('orderBairroOtherWrap');
+	if(!feeSpan) return;
+	const val = (selectedValue||'').trim();
+	if(!val){ feeSpan.textContent = ''; otherWrap.style.display = 'none'; return; }
+	const sel = document.getElementById('orderBairroSelect');
+	if(!sel){ feeSpan.textContent = ''; return; }
+	const opt = Array.from(sel.options).find(o => o.value.toLowerCase() === val.toLowerCase());
+	if(opt){
+		const fee = opt.getAttribute('data-fee');
+		if(fee && fee !== ''){
+			const n = Number(fee);
+			if(!isNaN(n)) feeSpan.textContent = `Entrega: R$ ${n.toFixed(2)}`;
+			else feeSpan.textContent = '';
+		} else {
+			feeSpan.innerHTML = '<strong style="color:#c00">consultar taxa de entrega</strong>';
+		}
+		otherWrap.style.display = (opt.value === 'Outro') ? 'block' : 'none';
+		if(opt.value === 'Outro') document.getElementById('orderBairroOther').focus();
+	} else {
+		// value not in select options: show consultar
+		feeSpan.innerHTML = '<strong style="color:#c00">consultar taxa de entrega</strong>';
+		otherWrap.style.display = 'none';
+	}
+}
+
+function setBairroValue(saved){
+	const sel = document.getElementById('orderBairroSelect');
+	const otherWrap = document.getElementById('orderBairroOtherWrap');
+	const otherInput = document.getElementById('orderBairroOther');
+	if(!sel) return;
+	const val = (saved||'').trim();
+	if(!val){ sel.value = ''; otherWrap.style.display = 'none'; updateBairroDisplay(''); return; }
+	const opt = Array.from(sel.options).find(o=>o.value.toLowerCase() === val.toLowerCase());
+	if(opt){
+		sel.value = opt.value;
+		if(opt.value === 'Outro'){
+			otherWrap.style.display = 'block';
+			otherInput.value = '';
+			otherInput.focus();
+		} else {
+			otherWrap.style.display = 'none';
+		}
+		updateBairroDisplay(opt.value);
+	} else {
+		// not found: select Outro and put value in other input
+		sel.value = 'Outro';
+		otherWrap.style.display = 'block';
+		otherInput.value = val;
+		updateBairroDisplay('Outro');
+	}
+}
+
+// wire change listener for select
+const bairroSelect = document.getElementById('orderBairroSelect');
+if(bairroSelect){
+	bairroSelect.addEventListener('change', e=>{
+		updateBairroDisplay(e.target.value);
+	});
+}
+
+// load fees on startup
+loadDeliveryFees();

@@ -99,9 +99,22 @@
 				<div style="margin-top:8px">
 					<label>Endereço<br><input id="orderAddress" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></label>
 				</div>
-				<div style="margin-top:8px;display:flex;gap:8px">
-					<label style="flex:1">Bairro<br><input id="orderBairro" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></label>
-					<label style="flex:1">Ponto de referência<br><input id="orderPonto" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></label>
+				<div style="margin-top:8px">
+					<label>Complemento<br><input id="orderComplemento" placeholder="Bloco, apartamento, outro" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></label>
+				</div>
+				<div style="margin-top:8px">
+					<label>Bairro<br>
+						<select id="orderBairroSelect" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc">
+							<option value="">Selecione o bairro</option>
+						</select>
+						<div style="margin-top:6px;font-size:13px;color:#333"><span id="orderBairroFee"></span></div>
+					</label>
+				</div>
+				<div style="margin-top:8px">
+					<label>Ponto de referência<br><input id="orderPonto" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></label>
+				</div>
+				<div style="margin-top:8px;display:none" id="orderBairroOtherWrap">
+					<label>Outro bairro (digite)<br><input id="orderBairroOther" placeholder="Digite seu bairro" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ccc"></label>
 				</div>
 				<div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
 					<button id="orderCancel" style="padding:8px 12px;border-radius:6px;border:1px solid #ccc;background:transparent">Cancelar</button>
